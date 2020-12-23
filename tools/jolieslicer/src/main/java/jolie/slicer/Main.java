@@ -23,6 +23,7 @@
 package jolie.slicer;
 
 import java.io.IOException;
+import java.util.Collection;
 import jolie.CommandLineException;
 import jolie.Interpreter;
 import jolie.JolieURLStreamHandlerFactory;
@@ -103,11 +104,19 @@ public class Main {
 				intConf.constants(),
 				intConf.executionTarget(), false );
 
+			Collection< Program > services = Slicer.sliceProgramIntoServices( program );
 
+			int i = 0;
+			for( Program service : services ) {
+				System.out.println( "Service " + i++ + ":" );
+				JoliePrettyPrinter prettyService = new JoliePrettyPrinter();
+				prettyService.visit( service );
+				System.out.println( prettyService.toString() );
+			}
 			// pp.visit( program );
 			// pp.prettyPrint( parseResult );
 			pp.visit( program );
-			System.out.println( pp.toString() );
+			// System.out.println( pp.toString() );
 
 			// ProgramInspector inspector = ParsingUtils.createInspector( program );
 
