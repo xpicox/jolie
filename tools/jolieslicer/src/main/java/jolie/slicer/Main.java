@@ -32,6 +32,7 @@ import jolie.lang.parse.ParserException;
 import jolie.lang.parse.ast.Program;
 import jolie.lang.parse.module.ModuleException;
 import jolie.lang.parse.util.ParsingUtils;
+import jolie.util.Pair;
 
 /**
  *
@@ -55,6 +56,9 @@ public class Main {
 		try {
 			JolieSlicerCommandLineParser cmdLnParser =
 				JolieSlicerCommandLineParser.create( args, Main.class.getClassLoader() );
+			if( cmdLnParser.getOutputDirectory() == null ) {
+				throw new CommandLineException( "Missing output directory (-o output_dir)" );
+			}
 			Interpreter.Configuration intConf = cmdLnParser.getInterpreterConfiguration();
 			// ModuleParsingConfiguration config =
 			// new ModuleParsingConfiguration( intConf.charset(),
@@ -104,18 +108,21 @@ public class Main {
 				intConf.constants(),
 				intConf.executionTarget(), false );
 
-			Collection< Program > services = Slicer.sliceProgramIntoServices( program );
+			Collection< Pair< String, Slicer.ServiceInformation< Program > > > services =
+				Slicer.sliceProgramIntoServices( program );
 
-			int i = 0;
-			for( Program service : services ) {
-				System.out.println( "Service " + i++ + ":" );
+			// int i = 0;
+			for( Pair< String, Slicer.ServiceInformation< Program > > service : services ) {
+				System.out.println( "Service " + service.key() + ":" );
 				JoliePrettyPrinter prettyService = new JoliePrettyPrinter();
-				prettyService.visit( service );
+				prettyService.visit( service.value().getNode() );
 				System.out.println( prettyService.toString() );
 			}
 			// pp.visit( program );
 			// pp.prettyPrint( parseResult );
 			pp.visit( program );
+
+			Slicer.generateServiceDirectories( cmdLnParser.getOutputDirectory(), services );
 			// System.out.println( pp.toString() );
 
 			// ProgramInspector inspector = ParsingUtils.createInspector( program );

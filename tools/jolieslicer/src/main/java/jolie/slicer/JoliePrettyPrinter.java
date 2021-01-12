@@ -868,9 +868,9 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 			}
 		} );
 
-		n.program().children().removeIf(
-			node -> (node instanceof OutputPortInfo)
-				&& embedNames.contains( ((OutputPortInfo) node).id() ) );
+		// n.program().children().removeIf(
+		// node -> (node instanceof OutputPortInfo)
+		// && embedNames.contains( ((OutputPortInfo) node).id() ) );
 
 
 		pp.append( "service" )
@@ -1092,7 +1092,7 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 		}
 
 		public PrettyPrinter comma() {
-			pp.append( ';' );
+			pp.append( ',' );
 			return this;
 		}
 
