@@ -45,8 +45,8 @@ public class InputPortInfo extends PortInfo {
 		}
 	}
 
-	private final OLSyntaxNode location;
-	private final OLSyntaxNode protocol;
+	private OLSyntaxNode location;
+	private OLSyntaxNode protocol;
 	private final AggregationItemInfo[] aggregationList;
 	private final Map< String, String > redirectionMap;
 
@@ -78,6 +78,14 @@ public class InputPortInfo extends PortInfo {
 
 	public OLSyntaxNode location() {
 		return location;
+	}
+
+	public void setProtocol( OLSyntaxNode protocol ) {
+		this.protocol = protocol;
+	}
+
+	public void setLocation( OLSyntaxNode location ) {
+		this.location = location;
 	}
 
 	@Override
