@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Formatter;
@@ -130,7 +131,7 @@ public class Slicer {
 		Collection< Pair< String, ServiceInformation< Program > > > services )
 		throws IOException {
 		OutputStream os;
-		Path outputPathDir = Path.of( outputDirectory );
+		Path outputPathDir = Paths.get( outputDirectory );
 		Files.createDirectories( outputPathDir );
 		for( Pair< String, ServiceInformation< Program > > service : services ) {
 			Path serviceDir = outputPathDir.resolve( service.key() );

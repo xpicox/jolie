@@ -3,8 +3,8 @@ package jolie.slicer;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import jolie.CommandLineException;
-import jolie.CommandLineParser;
+import jolie.cli.CommandLineException;
+import jolie.cli.CommandLineParser;
 
 public class JolieSlicerCommandLineParser extends CommandLineParser {
 
@@ -23,7 +23,7 @@ public class JolieSlicerCommandLineParser extends CommandLineParser {
 			String fileName = programFilePath.getName();
 			fileName = fileName.substring( 0, fileName.lastIndexOf( ".ol" ) );
 			argHandler.outputDirectory = programFilePath.toPath().resolveSibling( fileName ).toString();
-			System.out.println("Generating output files at: " + argHandler.outputDirectory);
+			System.out.println( "Generating output files at: " + argHandler.outputDirectory );
 		}
 	}
 

@@ -24,11 +24,12 @@ package jolie.slicer;
 
 import java.io.IOException;
 import java.util.Collection;
-import jolie.CommandLineException;
+import jolie.cli.CommandLineException;
 import jolie.Interpreter;
 import jolie.JolieURLStreamHandlerFactory;
 import jolie.lang.CodeCheckingException;
 import jolie.lang.parse.ParserException;
+import jolie.lang.parse.SemanticVerifier;
 import jolie.lang.parse.ast.Program;
 import jolie.lang.parse.module.ModuleException;
 import jolie.lang.parse.util.ParsingUtils;
@@ -97,6 +98,9 @@ public class Main {
 
 			// SymbolTable st = SymbolTableGenerator.generate( program );
 			// new ModuleRecord( scanner.source(), program, st );
+			SemanticVerifier.Configuration semVerConfig =
+				new SemanticVerifier.Configuration( intConf.executionTarget() );
+			semVerConfig.setCheckForMain( false );
 
 			Program program = ParsingUtils.parseProgram(
 				intConf.inputStream(),
@@ -106,7 +110,7 @@ public class Main {
 				intConf.packagePaths(),
 				intConf.jolieClassLoader(),
 				intConf.constants(),
-				intConf.executionTarget(), false );
+				semVerConfig, false );
 
 			Collection< Pair< String, Slicer.ServiceInformation< Program > > > services =
 				Slicer.sliceProgramIntoServices( program );
