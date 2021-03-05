@@ -74,9 +74,12 @@ public class Main {
 				semVerConfig,
 				INCLUDE_DOCUMENTATION );
 
-			Slicer slicer = new Slicer( program, cmdLnParser.getConfigFile(), cmdLnParser.getOutputDirectory() );
+			Slicer slicer = Slicer.create(
+				program,
+				cmdLnParser.getConfigFile(),
+				cmdLnParser.getOutputDirectory() );
 
-			Map< String, Program > slices = slicer.sliceProgram();
+			Map< String, Program > slices = slicer.getSlices();
 
 			// Debug output
 			slices.forEach( ( key, value ) -> {
@@ -86,7 +89,7 @@ public class Main {
 				System.out.println( prettyService.toString() );
 			} );
 
-			slicer.generateServiceDirectories( slices );
+			slicer.generateServiceDirectories();
 
 		} catch( CommandLineException | InvalidConfigurationFileException e ) {
 			System.out.println( e.getMessage() );
