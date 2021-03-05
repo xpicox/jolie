@@ -2,6 +2,8 @@ package jolie.slicer;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import jolie.cli.CommandLineException;
 import jolie.cli.CommandLineParser;
@@ -22,8 +24,12 @@ public class JolieSlicerCommandLineParser extends CommandLineParser {
 			File programFilePath = getInterpreterConfiguration().programFilepath();
 			String fileName = programFilePath.getName();
 			fileName = fileName.substring( 0, fileName.lastIndexOf( ".ol" ) );
-			argHandler.outputDirectory = programFilePath.toPath().resolveSibling( fileName ).toString();
+			argHandler.outputDirectory = programFilePath.toPath().resolveSibling( fileName );
 			System.out.println( "Generating output files at: " + argHandler.outputDirectory );
+		}
+
+		if( argHandler.configFile == null ) {
+			throw new CommandLineException( "Missing configuration file (--config config_file)" );
 		}
 	}
 
@@ -34,8 +40,8 @@ public class JolieSlicerCommandLineParser extends CommandLineParser {
 
 	private static class JolieSlicerArgumentHandler implements CommandLineParser.ArgumentHandler {
 		private String serviceName = null;
-		public String outputDirectory = null;
-		public String configFile = null;
+		public Path outputDirectory = null;
+		public Path configFile = null;
 
 		@Override
 		public int onUnrecognizedArgument( List< String > argumentsList, int index ) throws CommandLineException {
@@ -45,10 +51,10 @@ public class JolieSlicerCommandLineParser extends CommandLineParser {
 				serviceName = argumentsList.get( index );
 			} else if( "--output".equals( argumentsList.get( index ) ) || "-o".equals( argumentsList.get( index ) ) ) {
 				index++;
-				outputDirectory = argumentsList.get( index );
+				outputDirectory = Paths.get( argumentsList.get( index ) );
 			} else if( "--config".equals( argumentsList.get( index ) ) ) {
 				index++;
-				configFile = argumentsList.get( index );
+				configFile = Paths.get( argumentsList.get( index ) );
 			}
 			return index;
 		}
@@ -63,11 +69,11 @@ public class JolieSlicerCommandLineParser extends CommandLineParser {
 		return argHandler.serviceName;
 	}
 
-	public String getOutputDirectory() {
+	public Path getOutputDirectory() {
 		return argHandler.outputDirectory;
 	}
 
-	public String getConfigFile() {
+	public Path getConfigFile() {
 		return argHandler.configFile;
 	}
 

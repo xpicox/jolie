@@ -23,17 +23,17 @@
 package jolie.slicer;
 
 import java.io.IOException;
-import java.util.Collection;
-import jolie.cli.CommandLineException;
+import java.util.Map;
+
 import jolie.Interpreter;
 import jolie.JolieURLStreamHandlerFactory;
+import jolie.cli.CommandLineException;
 import jolie.lang.CodeCheckingException;
 import jolie.lang.parse.ParserException;
 import jolie.lang.parse.SemanticVerifier;
 import jolie.lang.parse.ast.Program;
 import jolie.lang.parse.module.ModuleException;
 import jolie.lang.parse.util.ParsingUtils;
-import jolie.util.Pair;
 
 /**
  *
@@ -45,7 +45,7 @@ public class Main {
 		JolieURLStreamHandlerFactory.registerInVM();
 	}
 
-	// private static final boolean INCLUDE_DOCUMENTATION = false;
+	private static final boolean INCLUDE_DOCUMENTATION = false;
 
 	public static void main( String[] args ) {
 		System.out.println( "Hello world!" );
@@ -54,50 +54,11 @@ public class Main {
 		// - Understand if its okey to extend the command line parser or what
 		// - There are a lot of things that the constructor of CLP does that maybe
 		// we are not inrested in
-		try {
-			JolieSlicerCommandLineParser cmdLnParser =
-				JolieSlicerCommandLineParser.create( args, Main.class.getClassLoader() );
-			if( cmdLnParser.getOutputDirectory() == null ) {
-				throw new CommandLineException( "Missing output directory (-o output_dir)" );
-			}
+		try( JolieSlicerCommandLineParser cmdLnParser =
+			JolieSlicerCommandLineParser.create( args, Main.class.getClassLoader() ) ) {
+
 			Interpreter.Configuration intConf = cmdLnParser.getInterpreterConfiguration();
-			// ModuleParsingConfiguration config =
-			// new ModuleParsingConfiguration( intConf.charset(),
-			// intConf.includePaths(), intConf.packagePaths(),
-			// intConf.jolieClassLoader(), intConf.constants(),
-			// INCLUDE_DOCUMENTATION );
 
-			// ModuleParser parser = new ModuleParser( config );
-			// ModuleRecord mainRecord = parser.parse(
-			// new Scanner( intConf.inputStream(), intConf.programFilepath().toURI(),
-			// config.charset(), config.includeDocumentation() ) );
-
-			// /*
-			// * A program before the SymbolReferenceResolver is phase is run
-			// */
-			// Program rawProgram = mainRecord.program();
-
-			JoliePrettyPrinter pp = new JoliePrettyPrinter();
-
-			// pp.visit( rawProgram );
-
-			// Modules.ModuleParsedResult parseResult =
-			// Modules.parseModule( config, intConf.inputStream(),
-			// intConf.programFilepath().toURI() );
-
-
-			/**
-			 * The semantic verifier introduces output port definitions for embedded services We pretty print
-			 * the program before it introduces names which we don't know from where they come from.
-			 */
-			// SemanticVerifier semanticVerifier =
-			// new SemanticVerifier( parseResult.mainProgram(),
-			// parseResult.symbolTables(),
-			// new SemanticVerifier.Configuration( intConf.executionTarget() ) );
-			// semanticVerifier.validate();
-
-			// SymbolTable st = SymbolTableGenerator.generate( program );
-			// new ModuleRecord( scanner.source(), program, st );
 			SemanticVerifier.Configuration semVerConfig =
 				new SemanticVerifier.Configuration( intConf.executionTarget() );
 			semVerConfig.setCheckForMain( false );
@@ -110,33 +71,24 @@ public class Main {
 				intConf.packagePaths(),
 				intConf.jolieClassLoader(),
 				intConf.constants(),
-				semVerConfig, false );
+				semVerConfig,
+				INCLUDE_DOCUMENTATION );
 
-			Collection< Pair< String, Slicer.ServiceInformation< Program > > > services =
-				Slicer.sliceProgramIntoServices( program );
+			Slicer slicer = new Slicer( program, cmdLnParser.getConfigFile(), cmdLnParser.getOutputDirectory() );
 
-			// int i = 0;
-			for( Pair< String, Slicer.ServiceInformation< Program > > service : services ) {
-				System.out.println( "Service " + service.key() + ":" );
+			Map< String, Program > slices = slicer.sliceProgram();
+
+			// Debug output
+			slices.forEach( ( key, value ) -> {
+				System.out.println( "Service " + key + ":" );
 				JoliePrettyPrinter prettyService = new JoliePrettyPrinter();
-				prettyService.visit( service.value().getNode() );
+				prettyService.visit( value );
 				System.out.println( prettyService.toString() );
-			}
-			// pp.visit( program );
-			// pp.prettyPrint( parseResult );
-			pp.visit( program );
+			} );
 
-			Slicer.generateServiceDirectories( cmdLnParser.getOutputDirectory(), services );
-			// System.out.println( pp.toString() );
+			slicer.generateServiceDirectories( slices );
 
-			// ProgramInspector inspector = ParsingUtils.createInspector( program );
-
-			// System.out.println( "Found the following services:" );
-			// for( ServiceNode s : inspector.getServiceNodes() ) {
-			// System.out.println( s.name() );
-			// }
-			cmdLnParser.close();
-		} catch( CommandLineException e ) {
+		} catch( CommandLineException | InvalidConfigurationFileException e ) {
 			System.out.println( e.getMessage() );
 		} catch( IOException | ParserException | CodeCheckingException | ModuleException e ) {
 			e.printStackTrace();
