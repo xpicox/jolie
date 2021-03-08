@@ -109,9 +109,12 @@ public class Slicer {
 			// Slice only services that are present in the configuration
 			.filter( s -> config.containsKey( s.name() ) )
 			.forEach( s -> {
-				ArrayList< OLSyntaxNode > newProgram = dependenciesResolver.getServiceDependencies( s );
 				// Sort dependencies by their line to preserve the ordering given by the programmer
-				newProgram.sort( Comparator.comparing( dep -> dep.context().line() ) );
+				List< OLSyntaxNode > newProgram =
+					dependenciesResolver.getServiceDependencies( s )
+						.stream()
+						.sorted( Comparator.comparing( dep -> dep.context().line() ) )
+						.collect( Collectors.toList() );
 				newProgram.add( s );
 				slices.put( s.name(), new Program( program.context(), newProgram ) );
 			} );
