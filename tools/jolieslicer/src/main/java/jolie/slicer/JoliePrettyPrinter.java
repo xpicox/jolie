@@ -22,119 +22,30 @@
 
 package jolie.slicer;
 
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import jolie.lang.Constants;
 import jolie.lang.parse.UnitOLVisitor;
-import jolie.lang.parse.ast.AddAssignStatement;
-import jolie.lang.parse.ast.AssignStatement;
-import jolie.lang.parse.ast.CompareConditionNode;
-import jolie.lang.parse.ast.CompensateStatement;
-import jolie.lang.parse.ast.CorrelationSetInfo;
-import jolie.lang.parse.ast.CurrentHandlerStatement;
-import jolie.lang.parse.ast.DeepCopyStatement;
-import jolie.lang.parse.ast.DefinitionCallStatement;
-import jolie.lang.parse.ast.DefinitionNode;
-import jolie.lang.parse.ast.DivideAssignStatement;
-import jolie.lang.parse.ast.DocumentationComment;
-import jolie.lang.parse.ast.EmbedServiceNode;
-import jolie.lang.parse.ast.EmbeddedServiceNode;
-import jolie.lang.parse.ast.ExecutionInfo;
-import jolie.lang.parse.ast.ExitStatement;
-import jolie.lang.parse.ast.ForEachArrayItemStatement;
-import jolie.lang.parse.ast.ForEachSubNodeStatement;
-import jolie.lang.parse.ast.ForStatement;
-import jolie.lang.parse.ast.IfStatement;
-import jolie.lang.parse.ast.ImportStatement;
-import jolie.lang.parse.ast.InputPortInfo;
-import jolie.lang.parse.ast.InstallFixedVariableExpressionNode;
-import jolie.lang.parse.ast.InstallStatement;
-import jolie.lang.parse.ast.InterfaceDefinition;
-import jolie.lang.parse.ast.InterfaceExtenderDefinition;
-import jolie.lang.parse.ast.LinkInStatement;
-import jolie.lang.parse.ast.LinkOutStatement;
-import jolie.lang.parse.ast.MultiplyAssignStatement;
-import jolie.lang.parse.ast.NDChoiceStatement;
-import jolie.lang.parse.ast.NotificationOperationStatement;
-import jolie.lang.parse.ast.NullProcessStatement;
-import jolie.lang.parse.ast.OLSyntaxNode;
-import jolie.lang.parse.ast.OneWayOperationDeclaration;
-import jolie.lang.parse.ast.OneWayOperationStatement;
-import jolie.lang.parse.ast.OperationDeclaration;
-import jolie.lang.parse.ast.OutputPortInfo;
-import jolie.lang.parse.ast.ParallelStatement;
-import jolie.lang.parse.ast.PointerStatement;
-import jolie.lang.parse.ast.PostDecrementStatement;
-import jolie.lang.parse.ast.PostIncrementStatement;
-import jolie.lang.parse.ast.PreDecrementStatement;
-import jolie.lang.parse.ast.PreIncrementStatement;
-import jolie.lang.parse.ast.Program;
-import jolie.lang.parse.ast.ProvideUntilStatement;
-import jolie.lang.parse.ast.RequestResponseOperationDeclaration;
-import jolie.lang.parse.ast.RequestResponseOperationStatement;
-import jolie.lang.parse.ast.RunStatement;
-import jolie.lang.parse.ast.Scope;
-import jolie.lang.parse.ast.SequenceStatement;
-import jolie.lang.parse.ast.ServiceNode;
-import jolie.lang.parse.ast.SolicitResponseOperationStatement;
-import jolie.lang.parse.ast.SpawnStatement;
-import jolie.lang.parse.ast.SubtractAssignStatement;
-import jolie.lang.parse.ast.SynchronizedStatement;
-import jolie.lang.parse.ast.ThrowStatement;
-import jolie.lang.parse.ast.TypeCastExpressionNode;
-import jolie.lang.parse.ast.UndefStatement;
-import jolie.lang.parse.ast.ValueVectorSizeExpressionNode;
-import jolie.lang.parse.ast.VariablePathNode;
-import jolie.lang.parse.ast.WhileStatement;
+import jolie.lang.parse.ast.*;
 import jolie.lang.parse.ast.courier.CourierChoiceStatement;
 import jolie.lang.parse.ast.courier.CourierDefinitionNode;
 import jolie.lang.parse.ast.courier.NotificationForwardStatement;
 import jolie.lang.parse.ast.courier.SolicitResponseForwardStatement;
-import jolie.lang.parse.ast.expression.AndConditionNode;
-import jolie.lang.parse.ast.expression.ConstantBoolExpression;
-import jolie.lang.parse.ast.expression.ConstantDoubleExpression;
-import jolie.lang.parse.ast.expression.ConstantIntegerExpression;
-import jolie.lang.parse.ast.expression.ConstantLongExpression;
-import jolie.lang.parse.ast.expression.ConstantStringExpression;
-import jolie.lang.parse.ast.expression.FreshValueExpressionNode;
-import jolie.lang.parse.ast.expression.InlineTreeExpressionNode;
-import jolie.lang.parse.ast.expression.InstanceOfExpressionNode;
-import jolie.lang.parse.ast.expression.IsTypeExpressionNode;
-import jolie.lang.parse.ast.expression.NotExpressionNode;
-import jolie.lang.parse.ast.expression.OrConditionNode;
-import jolie.lang.parse.ast.expression.ProductExpressionNode;
-import jolie.lang.parse.ast.expression.SumExpressionNode;
-import jolie.lang.parse.ast.expression.VariableExpressionNode;
-import jolie.lang.parse.ast.expression.VoidExpressionNode;
-import jolie.lang.parse.ast.types.TypeChoiceDefinition;
-import jolie.lang.parse.ast.types.TypeDefinitionLink;
-import jolie.lang.parse.ast.types.TypeInlineDefinition;
-import jolie.lang.parse.module.Modules.ModuleParsedResult;
-import jolie.lang.parse.module.SymbolTable;
+import jolie.lang.parse.ast.expression.*;
+import jolie.lang.parse.ast.types.*;
 import jolie.util.Pair;
+
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class JoliePrettyPrinter implements UnitOLVisitor {
 	PrettyPrinter pp = new PrettyPrinter();
-	Map< URI, SymbolTable > symbolTables;
+	boolean isTopLevelTypeDeclaration = true;
 
 	public String toString() {
 		return pp.pp.toString();
-	}
-
-	public void prettyPrint( ModuleParsedResult parsedResult ) {
-		symbolTables = parsedResult.symbolTables();
-		visit( parsedResult.mainProgram() );
 	}
 
 	@Override
@@ -149,7 +60,8 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 				// decl.requestType().accept( this );
 				pp.append( decl.requestType().name() );
 				return pp;
-			} );
+			} )
+			.toPP();
 	}
 
 	@Override
@@ -222,13 +134,11 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 				n.outputExpression().accept( this );
 				return pp;
 			} )
-			.toPP();
-		if( !(n.process() instanceof NullProcessStatement) ) {
-			pp.newCodeBlock( () -> {
+			.toPP()
+			.newCodeBlock( () -> {
 				n.process().accept( this );
 				return pp;
 			} );
-		}
 	}
 
 	@Override
@@ -426,8 +336,7 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 
 	@Override
 	public void visit( NullProcessStatement n ) {
-		// TODO Auto-generated method stub
-
+		pp.append( "nullProcess" );
 	}
 
 	@Override
@@ -722,13 +631,42 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 
 	@Override
 	public void visit( TypeInlineDefinition n ) {
-		// TODO Auto-generated method stub
+		if( isTopLevelTypeDeclaration ) {
+			pp.append( "type" ).space();
+		}
+		pp.append( n.name() )
+			.colon()
+			.space();
+		printBasicType( n.basicType() );
 
+		if( n.subTypes() != null && !n.subTypes().isEmpty() ) {
+			pp.space()
+				.newCodeBlock( () -> {
+					isTopLevelTypeDeclaration = false;
+					ArrayList< Map.Entry< String, TypeDefinition > > subTypes = new ArrayList<>( n.subTypes() );
+					subTypes.sort( Comparator.comparing( entry -> entry.getValue().context().line() ) );
+					intercalate( subTypes,
+						entry -> entry.getValue().accept( this ),
+						pp::newline );
+					isTopLevelTypeDeclaration = true;
+					return pp;
+				} );
+		}
+	}
+
+	private void printBasicType( BasicTypeDefinition n ) {
+		pp.append( n.nativeType().id() );
 	}
 
 	@Override
 	public void visit( TypeDefinitionLink n ) {
-		pp.append( n.linkedTypeName() );
+		if( isTopLevelTypeDeclaration ) {
+			pp.append( "type" ).space();
+		}
+		pp.append( n.name() )
+			.colon()
+			.space()
+			.append( n.linkedTypeName() );
 	}
 
 	@Override
@@ -830,7 +768,9 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 	@Override
 	public void visit( TypeChoiceDefinition n ) {
 		// TODO Auto-generated method stub
-
+		n.left().accept( this );
+		pp.space().append( '|' ).space();
+		n.right().accept( this );
 	}
 
 	@Override
