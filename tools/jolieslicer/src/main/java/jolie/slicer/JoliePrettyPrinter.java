@@ -30,19 +30,22 @@ import jolie.lang.parse.ast.courier.CourierDefinitionNode;
 import jolie.lang.parse.ast.courier.NotificationForwardStatement;
 import jolie.lang.parse.ast.courier.SolicitResponseForwardStatement;
 import jolie.lang.parse.ast.expression.*;
-import jolie.lang.parse.ast.types.*;
+import jolie.lang.parse.ast.types.TypeChoiceDefinition;
+import jolie.lang.parse.ast.types.TypeDefinition;
+import jolie.lang.parse.ast.types.TypeDefinitionLink;
+import jolie.lang.parse.ast.types.TypeInlineDefinition;
 import jolie.util.Pair;
 
 import java.util.*;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
 public class JoliePrettyPrinter implements UnitOLVisitor {
-	PrettyPrinter pp = new PrettyPrinter();
-	boolean isTopLevelTypeDeclaration = true;
+	final PrettyPrinter pp = new PrettyPrinter();
+	boolean isTopLevelTypeDeclaration = false;
 
 	public String toString() {
 		return pp.pp.toString();
@@ -50,63 +53,47 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 
 	@Override
 	public void visit( Program n ) {
-		intercalate( n.children(), child -> child.accept( this ), pp::newline );
+		pp.intercalate( n.children(),
+			(child, pp) -> child.accept( this ),
+			pp -> pp.newline() );
 	}
 
 	@Override
 	public void visit( OneWayOperationDeclaration decl ) {
 		pp.append( decl.id() )
-			.parens( () -> {
-				// decl.requestType().accept( this );
-				pp.append( decl.requestType().name() );
-				return pp;
-			} )
-			.toPP();
+			.parens( pp -> pp.append( decl.requestType().name() ) );
 	}
 
 	@Override
 	public void visit( RequestResponseOperationDeclaration decl ) {
 		// TODO: Print faults
 		pp.append( decl.id() )
-			.parens( () -> {
-				// decl.requestType().accept( this );
-				pp.append( decl.requestType().name() );
-				return pp;
-			} ).toPP()
-			.parens( () -> {
-				// decl.requestType().accept( this );
-				pp.append( decl.responseType().name() );
-				return pp;
-			} ).toPP();
+			.parens( pp -> pp
+				.append( decl.requestType().name() ) )
+			.parens( pp -> pp
+				.append( decl.responseType().name() ) );
 	}
 
 	@Override
 	public void visit( DefinitionNode n ) {
 		pp.append( n.id() )
 			.space()
-			.newCodeBlock( () -> {
+			.newCodeBlock( pp -> {
 				n.body().accept( this );
 				return pp;
-			} );
-		// pp.append( "DEFINITION NODE" ).newline();
+			});
 	}
 
 	@Override
 	public void visit( ParallelStatement n ) {
-		pp.append( "PARALLEL STMT" ).newline();
-		intercalate( n.children(),
-			child -> pp.newCodeBlock( () -> {
-				child.accept( this );
-				return pp;
-			} ),
-			() -> {
-				return pp.append( '|' ).newline();
-			} );
-	}
-
-	@Override
-	public void visit( SequenceStatement n ) {
-		intercalate( n.children(), child -> child.accept( this ), pp::newline );
+		pp.append( "PARALLEL STMT:" )
+			.newline()
+			.intercalate( n.children(),
+				(child, _0) -> _0.newCodeBlock( pp -> {
+						child.accept( this );
+						return pp;
+					}),
+				pp -> pp.append( '|' ).newline() );
 	}
 
 	@Override
@@ -116,26 +103,30 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 	}
 
 	@Override
+	public void visit( SequenceStatement n ) {
+		pp.intercalate( n.children(),
+			(child, _0) -> child.accept( this ),
+			PrettyPrinter::newline );
+	}
+
+	@Override
 	public void visit( OneWayOperationStatement n ) {
 		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void visit( RequestResponseOperationStatement n ) {
 		// TODO Pretty print n.process()
 		pp.append( n.id() )
-			.parens( () -> {
+			.parens( pp -> {
 				n.inputVarPath().accept( this );
 				return pp;
 			} )
-			.toPP()
-			.parens( () -> {
+			.parens( pp -> {
 				n.outputExpression().accept( this );
 				return pp;
 			} )
-			.toPP()
-			.newCodeBlock( () -> {
+			.newCodeBlock( pp -> {
 				n.process().accept( this );
 				return pp;
 			} );
@@ -153,17 +144,13 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 		pp.append( n.id() )
 			.append( '@' )
 			.append( n.outputPortId() )
-			.parens( () -> {
+			.parens( pp -> {
 				n.outputExpression().accept( this );
 				return pp;
 			} )
-			.toPP()
-			.parens( () -> {
-				Optional.ofNullable( n.inputVarPath() )
-					.ifPresent( varPath -> varPath.accept( this ) );
-				return pp;
-			} )
-			.toPP();
+			.parens( pp -> pp
+				.ifPresent( Optional.ofNullable( n.inputVarPath() ),
+					(varPath, _0) -> varPath.accept( this ) ) );
 	}
 
 	@Override
@@ -385,70 +372,48 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 
 	@Override
 	public void visit( InputPortInfo n ) {
-		// TODO: An input port has several other things to be printed
 		pp.append( "inputPort" )
 			.space()
 			.append( n.id() )
-			.space();
-		ppInputPortInfo( n );
-	}
-
-	private void ppInputPortInfo( InputPortInfo n ) {
-		pp.newCodeBlock( () -> {
-			pp.append( "location" )
+			.space()
+			.newCodeBlock( _0 -> _0
+				.append( "location" )
 				.colon()
 				.space()
 				.append( '"' )
 				.append( n.location().toString() )
 				.append( '"' )
-				.newline();
-			if( n.protocol() != null ) {
-				pp.append( "protocol" )
+				.newline()
+				.onlyIf( n.protocol() != null, _1 -> _1
+					.append( "protocol" )
 					.colon()
 					.space()
 					.append( n.protocol().toString() )
-					.newline();
-			}
-
-			if( !n.getInterfaceList().isEmpty() ) {
-				pp.append( "interfaces" )
+					.newline() )
+				.onlyIf( !n.getInterfaceList().isEmpty(), _1 -> _1
+					.append( "interfaces" )
 					.colon()
-					.nest( () -> {
-						Iterator< InterfaceDefinition > it = n.getInterfaceList().iterator();
-						if( n.getInterfaceList().size() > 1 ) {
-							pp.newline();
-						} else {
-							pp.space();
-						}
-
-						while( it.hasNext() ) {
-							pp.append( it.next().name() );
-							if( it.hasNext() ) {
-								pp.comma().newline();
-							}
-						}
-						return pp;
-					} )
-					.run();
-			}
-
-			if( n.aggregationList().length > 0 ) {
-				// TODO: pretty print aggregates
-				pp.append( "aggregates" )
+					.nest( _2 -> _2
+						.ifTrueOrElse( n.getInterfaceList().size() > 1,
+							PrettyPrinter::newline,
+							PrettyPrinter::space)
+						.intercalate( n.getInterfaceList(),
+							(id, pp) -> pp.append( id.name() ),
+							pp -> pp.comma().newline() )
+					))
+				.onlyIf( n.aggregationList().length > 0, _1 -> _1
+					// TODO: pretty print aggregates
+					.append( "aggregates" )
 					.colon()
 					.space()
-					.append( "NOT IMPLEMENTED" );
-			}
-
-			if( !n.redirectionMap().isEmpty() ) {
-				// TODO: pretty print redirects
-				pp.append( "redirects" )
+					.append( "NOT IMPLEMENTED" ) )
+				.onlyIf( !n.redirectionMap().isEmpty(), _1 -> _1
+					// TODO: pretty print redirects
+					.append( "redirects" )
 					.colon()
 					.space()
-					.append( "NOT IMPLEMENTED" );
-			}
-			return pp;
-		} );
+					.append( "NOT IMPLEMENTED" ) )
+			);
 	}
 
 	@Override
@@ -456,51 +421,34 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 		pp.append( "outputPort" )
 			.space()
 			.append( n.id() )
-			.space();
-		ppOutputPortInfo( n );
-	}
-
-	private void ppOutputPortInfo( OutputPortInfo n ) {
-		pp.newCodeBlock( () -> {
-			if( n.location() != null ) {
-				pp.append( "location" )
+			.space()
+			.newCodeBlock( _0 -> _0
+				.onlyIf( n.location() != null, _1 -> _1
+					.append( "location" )
 					.colon()
 					.space()
 					.append( '"' )
 					.append( n.location().toString() )
 					.append( '"' )
-					.newline();
-			}
-			if( n.protocol() != null ) {
-				pp.append( "protocol" )
+					.newline() )
+				.onlyIf( n.protocol() != null, _1 ->_1
+					.append( "protocol" )
 					.colon()
 					.space()
 					.append( n.protocol().toString() )
-					.newline();
-			}
-
-			if( !n.getInterfaceList().isEmpty() ) {
-				pp.append( "interfaces" )
+					.newline() )
+				.onlyIf( !n.getInterfaceList().isEmpty(), _1 -> _1
+					.append( "interfaces" )
 					.colon()
-					.nest( () -> {
-						Iterator< InterfaceDefinition > it = n.getInterfaceList().iterator();
-						if( n.getInterfaceList().size() > 1 ) {
-							pp.newline();
-						} else {
-							pp.space();
-						}
-
-						intercalate( it,
-							iface -> pp.append( iface.name() ),
-							() -> {
-								return pp.comma().newline();
-							} );
-						return pp;
-					} )
-					.run();
-			}
-			return pp;
-		} );
+					.nest( _2 -> _2
+						.ifTrueOrElse( n.getInterfaceList().size() > 1,
+							PrettyPrinter::newline,
+							PrettyPrinter::space)
+						.intercalate( n.getInterfaceList(),
+							(id, pp) -> pp.append( id.name() ),
+							pp -> pp.comma().newline() )
+					))
+			);
 	}
 
 	@Override
@@ -625,45 +573,35 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 
 	@Override
 	public void visit( VariablePathNode n ) {
-		// TODO Auto-generated method stub
 		pp.append( n.toPrettyString() );
 	}
 
 	@Override
 	public void visit( TypeInlineDefinition n ) {
-		if( isTopLevelTypeDeclaration ) {
-			pp.append( "type" ).space();
-		}
-		pp.append( n.name() )
+		pp.onlyIf( isTopLevelTypeDeclaration, pp -> pp.append( "type" ).space() )
+			.append( n.name() )
 			.colon()
-			.space();
-		printBasicType( n.basicType() );
-
-		if( n.subTypes() != null && !n.subTypes().isEmpty() ) {
-			pp.space()
-				.newCodeBlock( () -> {
+			.space()
+			.append( n.basicType().nativeType().id() )
+			.onlyIf( n.subTypes() != null && !n.subTypes().isEmpty(), _0 -> _0
+				.space()
+				.newCodeBlock( pp -> {
+					boolean previousValue = isTopLevelTypeDeclaration;
 					isTopLevelTypeDeclaration = false;
-					ArrayList< Map.Entry< String, TypeDefinition > > subTypes = new ArrayList<>( n.subTypes() );
+					List< Map.Entry< String, TypeDefinition > > subTypes = new ArrayList<>( n.subTypes() );
 					subTypes.sort( Comparator.comparing( entry -> entry.getValue().context().line() ) );
-					intercalate( subTypes,
-						entry -> entry.getValue().accept( this ),
-						pp::newline );
-					isTopLevelTypeDeclaration = true;
+					pp.intercalate( subTypes,
+						(entry, _1) -> entry.getValue().accept( this ),
+						PrettyPrinter::newline );
+					isTopLevelTypeDeclaration = previousValue;
 					return pp;
-				} );
-		}
-	}
-
-	private void printBasicType( BasicTypeDefinition n ) {
-		pp.append( n.nativeType().id() );
+				} ) );
 	}
 
 	@Override
 	public void visit( TypeDefinitionLink n ) {
-		if( isTopLevelTypeDeclaration ) {
-			pp.append( "type" ).space();
-		}
-		pp.append( n.name() )
+		pp.onlyIf( isTopLevelTypeDeclaration, pp -> pp.append( "type" ).space() )
+			.append( n.name() )
 			.colon()
 			.space()
 			.append( n.linkedTypeName() );
@@ -675,33 +613,27 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 			.space()
 			.append( n.name() )
 			.space()
-			.newCodeBlock( () -> {
-				Stream< OperationDeclaration > s = n.operationsMap().values().stream();
-				Map< Boolean, List< OperationDeclaration > > operations =
+			.newCodeBlock( pp -> {
+				Stream<OperationDeclaration> s = n.operationsMap().values().stream();
+				Map<Boolean, List<OperationDeclaration>> operations =
 					s.collect( Collectors.partitioningBy( op -> op instanceof OneWayOperationDeclaration ) );
-				if( !operations.get( true ).isEmpty() ) {
-					pp.append( "OneWay" )
+				return pp
+					.onlyIf( !operations.get( true ).isEmpty(), _0 -> _0
+						.append( "OneWay" )
 						.colon()
-						.nest( () -> {
-							pp.newline();
-							intercalate( operations.get( true ),
-								opDecl -> opDecl.accept( this ),
-								() -> pp.comma().newline() );
-							return pp;
-						} ).toPP();
-				}
-				if( !operations.get( false ).isEmpty() ) {
-					pp.append( "RequestResponse" )
+						.nest( _1 -> _1
+							.newline()
+							.intercalate( operations.get( true ),
+								( opDecl, _2 ) -> opDecl.accept( this ),
+								_2 -> _2.comma().newline() ) ) )
+					.onlyIf( !operations.get( false ).isEmpty(), _0 -> _0
+						.append( "RequestResponse" )
 						.colon()
-						.nest( () -> {
-							pp.newline();
-							intercalate( operations.get( false ),
-								opDecl -> opDecl.accept( this ),
-								() -> pp.comma().newline() );
-							return pp;
-						} ).toPP();
-				}
-				return pp;
+						.nest( _1 -> _1
+							.newline()
+							.intercalate( operations.get( false ),
+								( opDecl, _2 ) -> opDecl.accept( this ),
+								_2 -> _2.comma().newline() ) ) );
 			} );
 	}
 
@@ -767,7 +699,6 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 
 	@Override
 	public void visit( TypeChoiceDefinition n ) {
-		// TODO Auto-generated method stub
 		n.left().accept( this );
 		pp.space().append( '|' ).space();
 		n.right().accept( this );
@@ -775,82 +706,43 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 
 	@Override
 	public void visit( ImportStatement n ) {
-		// TODO Auto-generated method stub
-		pp.append( "from" )
-			.space();
-		n.importTarget().forEach( pp::append );
-		pp.space()
-			.append( "import" )
-			.space();
-		if( n.isNamespaceImport() ) {
-			pp.append( "*" );
-		} else {
-			intercalate( Arrays.asList( n.importSymbolTargets() ).iterator(),
-				symbol -> pp.append( symbol.toString() ),
-				() -> {
-					return pp.comma().space();
-				} );
-		}
+		pp.append( n.toString() );
 	}
 
 	@Override
 	public void visit( ServiceNode n ) {
-		// TODO Auto-generated method stub
-
-		// Remove OutputPorts generated by an `embed as` statement
-		ArrayList< String > embedNames = new ArrayList<>();
-		n.program().children().forEach( node -> {
-			if( node instanceof EmbedServiceNode ) {
-				EmbedServiceNode es = (EmbedServiceNode) node;
-				if( es.isNewPort() && es.hasBindingPort() ) {
-					embedNames.add( es.bindingPort().id() );
-				}
-			}
-		} );
-
-		// n.program().children().removeIf(
-		// node -> (node instanceof OutputPortInfo)
-		// && embedNames.contains( ((OutputPortInfo) node).id() ) );
-
-
 		pp.append( "service" )
 			.space()
 			.append( n.name() )
-			.space();
-		n.parameterConfiguration().ifPresent( param -> {
-			pp.parens( () -> {
-				return pp
+			.space()
+			.ifPresent( n.parameterConfiguration(), (param, _0) -> _0
+				.parens( _1 -> _1
 					.append( param.type().id() )
 					.space()
 					.colon()
 					.space()
-					.append( param.variablePath() );
-			} ).run();
-		} );
-
-		pp.newCodeBlock( () -> {
-			n.program().accept( this );
-			return pp;
-		} );
+					.append( param.variablePath() ) ) )
+			.newCodeBlock( pp -> {
+				n.program().accept( this );
+				return pp;
+			} );
 	}
 
 	@Override
 	public void visit( EmbedServiceNode n ) {
 		pp.append( "embed" )
 			.space()
-			.append( n.serviceName() );
-		Optional.ofNullable( n.passingParameter() ).ifPresent( param -> {
-			pp.parens( () -> {
-				param.accept( this );
-				return pp;
-			} );
-		} );
-		Optional.ofNullable( n.bindingPort() ).ifPresent( port -> {
-			pp.space()
+			.append( n.serviceName() )
+			.onlyIf( n.passingParameter() != null, _0 -> _0
+				.parens( pp -> {
+					n.passingParameter().accept( this );
+					return pp;
+				} ))
+			.onlyIf( n.bindingPort() != null, _0 -> _0
+				.space()
 				.append( n.isNewPort() ? "as" : "in" )
 				.space()
-				.append( port.id() );
-		} );
+				.append( n.bindingPort().id() ) );
 	}
 
 	/*
@@ -858,28 +750,11 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 	 */
 	private interface PPRunnable {
 		PrettyPrinter run();
-
-		default PrettyPrinter toPP() {
-			return run();
-		};
 	}
 
-	private interface PPFunction extends Function< PPRunnable, PPRunnable > {
-	};
+	private interface PPFunction extends Function<PrettyPrinter,PrettyPrinter> { }
 
 
-	private < T > void intercalate( Iterator< T > it, Consumer< T > printer, PPRunnable interleave ) {
-		while( it.hasNext() ) {
-			printer.accept( it.next() );
-			if( it.hasNext() ) {
-				interleave.run();
-			}
-		}
-	}
-
-	private < T > void intercalate( Collection< T > collection, Consumer< T > printer, PPRunnable interleave ) {
-		intercalate( collection.iterator(), printer, interleave );
-	}
 
 
 	private static class PrettyPrinter {
@@ -919,98 +794,84 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 		}
 
 		public PrettyPrinter newline() {
-			pp.append( '\n' );
+			pp.append( System.lineSeparator() );
 			for( int i = 0; i < indentationLevel; ++i ) {
 				pp.append( '\t' );
 			}
 			return this;
 		}
 
-		public PrettyPrinter newBlock() {
-			pp.append( '\n' );
-			indentationLevel++;
-			for( int i = 0; i < indentationLevel; ++i ) {
-				pp.append( '\t' );
-			}
-			return this;
+		private PrettyPrinter run( PPRunnable prettyPrinter ) {
+			return prettyPrinter.run();
 		}
 
-		public PrettyPrinter endBlock() {
-			pp.append( '\n' );
-			indentationLevel--;
-			for( int i = 0; i < indentationLevel; ++i ) {
-				pp.append( '\t' );
-			}
-			return this;
+		public PrettyPrinter run( PPFunction prettyPrinter ) {
+			return prettyPrinter.apply( this );
 		}
 
-		public PPRunnable braces( PPRunnable prettyPrinter ) {
-			return () -> {
-				pp.append( '{' );
-				prettyPrinter.run();
-				pp.append( '}' );
-				return this;
-			};
+		public PrettyPrinter braces( PPFunction prettyPrinter ) {
+			return lbrace()
+				.run( prettyPrinter )
+				.rbrace();
 		}
 
-		public PPRunnable parens( PPRunnable prettyPrinter ) {
-			return () -> {
-				lparen().space();
-				prettyPrinter.run();
-				space().rparen();
-				return this;
-			};
+		public PrettyPrinter parens( PPFunction prettyPrinter ) {
+			return lparen()
+				.run( prettyPrinter )
+				.rparen();
 		}
 
-		public PPRunnable spaces( PPRunnable prettyPrinter ) {
-			return () -> {
-				space();
-				prettyPrinter.run();
-				return space();
-			};
+		public PrettyPrinter spaces( PPRunnable prettyPrinter ) {
+			return space()
+				.run( prettyPrinter )
+				.space();
 		}
 
-		public PPRunnable nest( PPRunnable prettyPrinter ) {
-			return () -> {
+		public PrettyPrinter nest( PPFunction prettyPrinter ) {
+			return run( () -> {
 				indentationLevel++;
-				prettyPrinter.run();
+				run( prettyPrinter );
 				indentationLevel--;
-				// newline();
 				return this;
-			};
+			});
 		}
 
-		public PrettyPrinter newCodeBlock( PPRunnable prettyPrinter ) {
-			lbrace();
-			nest( () -> {
-				newline();
-				prettyPrinter.run();
-				return this;
-			} ).toPP();
-			newline();
-			return rbrace();
-			// return ((PPFunction) this::braces).compose( this::nest )
-			// .apply( () -> {
-			// newline();
-			// prettyPrinter.run();
-			// newline().append( "Code goes here.." );
-			// return this;
-			// } )
-			// .run()
-			// .newline();
+		public PrettyPrinter newCodeBlock( PPFunction prettyPrinter ) {
+			/* return lbrace()
+				.nest( () -> newline().run( prettyPrinter ) )
+				.newline()
+				.rbrace(); */
+			return braces( _1 ->
+				nest( _2 -> newline().run( prettyPrinter ) ).newline()
+			);
+		}
 
-			// .apply(() -> {
-			// newline();
-			// prettyPrinter.run();
-			// } ).run();
+		public < T > PrettyPrinter intercalate( Iterator< T > it, BiConsumer< T, PrettyPrinter > printer, PPFunction interleave ) {
+			while( it.hasNext() ) {
+				printer.accept( it.next(), this );
+				if( it.hasNext() ) {
+					run( interleave );
+				}
+			}
+			return this;
+		}
 
-			// return this;
-			// braces( () -> {
-			// nest();
-			// newline();
-			// prettyPrinter.run();
-			// return this;
-			// } );
+		public < T > PrettyPrinter intercalate( Collection< T > collection, BiConsumer< T, PrettyPrinter > printer, PPFunction interleave ) {
+			return intercalate( collection.iterator(), printer, interleave );
+		}
+
+		public <T> PrettyPrinter ifPresent( Optional<T> optional, BiConsumer<T,PrettyPrinter> prettyPrinter ) {
+			optional.ifPresent( t -> prettyPrinter.accept( t, this ) );
+			return this;
+		}
+
+
+		public PrettyPrinter ifTrueOrElse( boolean condition, PPFunction trueCase, PPFunction falseCase ) {
+			return condition ? trueCase.apply( this ) : falseCase.apply( this );
+		}
+
+		public PrettyPrinter onlyIf( boolean condition, PPFunction prettyPrinter ) {
+			return ifTrueOrElse( condition, prettyPrinter, p -> p );
 		}
 
 		public PrettyPrinter space() {
