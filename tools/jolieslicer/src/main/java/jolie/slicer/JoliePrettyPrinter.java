@@ -37,8 +37,7 @@ import jolie.lang.parse.ast.types.TypeInlineDefinition;
 import jolie.util.Pair;
 
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -55,7 +54,7 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 	public void visit( Program n ) {
 		pp.intercalate( n.children(),
 			(child, pp) -> child.accept( this ),
-			pp -> pp.newline() );
+			PrettyPrinter::newline );
 	}
 
 	@Override
@@ -745,22 +744,9 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 				.append( n.bindingPort().id() ) );
 	}
 
-	/*
-	 * Functional interface to handle PrettyPrinter method references
-	 */
-	private interface PPRunnable {
-		PrettyPrinter run();
-	}
-
-	private interface PPFunction extends Function<PrettyPrinter,PrettyPrinter> { }
-
-
-
-
 	private static class PrettyPrinter {
 		StringBuilder pp = new StringBuilder( 1000 );
 		int indentationLevel = 0;
-
 
 		public PrettyPrinter append( String a ) {
 			pp.append( a );
@@ -801,42 +787,52 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 			return this;
 		}
 
-		private PrettyPrinter run( PPRunnable prettyPrinter ) {
-			return prettyPrinter.run();
+		private PrettyPrinter run( Supplier<PrettyPrinter> prettyPrinter ) {
+			return prettyPrinter.get();
 		}
 
-		public PrettyPrinter run( PPFunction prettyPrinter ) {
+		private PrettyPrinter run( Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
 			return prettyPrinter.apply( this );
 		}
 
-		public PrettyPrinter braces( PPFunction prettyPrinter ) {
-			return lbrace()
+		public PrettyPrinter surround( String ldelimiter, String rdelimiter, Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			return append( ldelimiter )
 				.run( prettyPrinter )
-				.rbrace();
+				.append( rdelimiter );
 		}
 
-		public PrettyPrinter parens( PPFunction prettyPrinter ) {
-			return lparen()
-				.run( prettyPrinter )
-				.rparen();
+		public PrettyPrinter surround( Function<PrettyPrinter, PrettyPrinter> ldelimiter, Function<PrettyPrinter, PrettyPrinter> rdelimiter, Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			return run( ldelimiter.andThen( prettyPrinter ).andThen( rdelimiter ) );
 		}
 
-		public PrettyPrinter spaces( PPRunnable prettyPrinter ) {
-			return space()
-				.run( prettyPrinter )
-				.space();
+		public PrettyPrinter surround( String delimiter, Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			return surround( delimiter, delimiter, prettyPrinter );
 		}
 
-		public PrettyPrinter nest( PPFunction prettyPrinter ) {
-			return run( () -> {
-				indentationLevel++;
-				run( prettyPrinter );
-				indentationLevel--;
-				return this;
-			});
+		public PrettyPrinter surround( Function<PrettyPrinter,PrettyPrinter> delimiter, Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			return surround( delimiter, delimiter, prettyPrinter );
 		}
 
-		public PrettyPrinter newCodeBlock( PPFunction prettyPrinter ) {
+		public PrettyPrinter braces( Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			return surround( PrettyPrinter::lbrace, PrettyPrinter::rbrace, prettyPrinter);
+		}
+
+		public PrettyPrinter parens( Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			return surround( PrettyPrinter::lparen, PrettyPrinter::rparen, prettyPrinter);
+		}
+
+		public PrettyPrinter spaces( Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			return surround( PrettyPrinter::space, prettyPrinter );
+		}
+
+		public PrettyPrinter nest( Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
+			indentationLevel++;
+			run( prettyPrinter );
+			indentationLevel--;
+			return this;
+		}
+
+		public PrettyPrinter newCodeBlock( Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
 			/* return lbrace()
 				.nest( () -> newline().run( prettyPrinter ) )
 				.newline()
@@ -846,7 +842,9 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 			);
 		}
 
-		public < T > PrettyPrinter intercalate( Iterator< T > it, BiConsumer< T, PrettyPrinter > printer, PPFunction interleave ) {
+		public < T > PrettyPrinter intercalate( Iterator< T > it,
+			BiConsumer< T, PrettyPrinter > printer,
+			Function<PrettyPrinter, PrettyPrinter> interleave ) {
 			while( it.hasNext() ) {
 				printer.accept( it.next(), this );
 				if( it.hasNext() ) {
@@ -856,7 +854,9 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 			return this;
 		}
 
-		public < T > PrettyPrinter intercalate( Collection< T > collection, BiConsumer< T, PrettyPrinter > printer, PPFunction interleave ) {
+		public < T > PrettyPrinter intercalate( Collection< T > collection,
+			BiConsumer< T, PrettyPrinter > printer,
+			Function<PrettyPrinter, PrettyPrinter> interleave ) {
 			return intercalate( collection.iterator(), printer, interleave );
 		}
 
@@ -866,11 +866,13 @@ public class JoliePrettyPrinter implements UnitOLVisitor {
 		}
 
 
-		public PrettyPrinter ifTrueOrElse( boolean condition, PPFunction trueCase, PPFunction falseCase ) {
+		public PrettyPrinter ifTrueOrElse( boolean condition,
+			Function<PrettyPrinter, PrettyPrinter> trueCase,
+			Function<PrettyPrinter, PrettyPrinter> falseCase ) {
 			return condition ? trueCase.apply( this ) : falseCase.apply( this );
 		}
 
-		public PrettyPrinter onlyIf( boolean condition, PPFunction prettyPrinter ) {
+		public PrettyPrinter onlyIf( boolean condition, Function<PrettyPrinter, PrettyPrinter> prettyPrinter ) {
 			return ifTrueOrElse( condition, prettyPrinter, p -> p );
 		}
 
